@@ -1,4 +1,4 @@
-const CACHE = "gtd-v4";
+const CACHE = "gtd-v5";
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./","./index.html"])).catch(()=>{}));
@@ -15,7 +15,20 @@ self.addEventListener("fetch", e => {
   );
 });
 
-// プッシュ通知受信
+// アプリからのpostMessageで通知表示
+self.addEventListener("message", e => {
+  if(e.data && e.data.type==="SHOW_NOTIFICATION") {
+    self.registration.showNotification(e.data.title||"🔔 リマインダー", {
+      body: e.data.body||"",
+      icon: "./icon.png",
+      badge: "./icon.png",
+      tag: e.data.tag||"gtd-reminder",
+      requireInteraction: true,
+    });
+  }
+});
+
+// プッシュ通知
 self.addEventListener("push", e => {
   const data = e.data ? e.data.json() : {};
   e.waitUntil(self.registration.showNotification(data.title||"GTDタスク", {
@@ -23,7 +36,6 @@ self.addEventListener("push", e => {
     icon: "./icon.png",
     badge: "./icon.png",
     tag: data.tag||"gtd",
-    data: data,
   }));
 });
 

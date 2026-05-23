@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#F9F8F6" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="GTDタスク" />
@@ -966,9 +969,7 @@ function TaskRow({task,tasks,projects,openPanel,setOpenPanel,upd,del,togCtx,comp
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:compact?13:14,lineHeight:1.5,
             display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
-            {task.isNextAction&&<span style={{fontSize:11,color:"#F59E0B"}}>⚡</span>}
-            {!task.clarified&&<span style={{fontSize:10,color:"#EF4444",
-              background:"#FEF2F2",borderRadius:4,padding:"1px 5px"}}>未仕分け</span>}
+
             <span>{task.text}</span>
             {task.category==="inbox"&&!task.done&&(Date.now()-task.createdAt)>86400000&&(
               <span style={{fontSize:9,fontWeight:700,color:"#EF4444",
@@ -1162,10 +1163,12 @@ function DailySchedule({tasks, completeTask, upd}) {
   const [taskQuery,setTaskQuery]= useState("");
 
   useEffect(()=>{
-    setEntries(load("gtd_timeline_"+schedDate,[]));
-    setDayMemo(load("gtd_daymemo_"+schedDate,""));
+    const tl = load("gtd_timeline_"+schedDate,[]);
+    const dm = load("gtd_daymemo_"+schedDate,"");
+    setEntries(Array.isArray(tl)?tl:[]);
+    setDayMemo(typeof dm==="string"?dm:"");
   },[schedDate]);
-  useEffect(()=>{ save("gtd_timeline_"+schedDate, entries); },[entries,schedDate]);
+  useEffect(()=>{ if(Array.isArray(entries)) save("gtd_timeline_"+schedDate, entries); },[entries,schedDate]);
   useEffect(()=>{ save("gtd_daymemo_"+schedDate, dayMemo);  },[dayMemo,schedDate]);
 
   // 通知許可を取得
@@ -1178,7 +1181,7 @@ function DailySchedule({tasks, completeTask, upd}) {
   // リマインダーチェック（1分ごと）
   useEffect(()=>{
     checkReminders(tasks);
-    const t=setInterval(()=>checkReminders(tasks),60000);
+    const t=setInterval(()=>checkReminders(tasks),30000);
     return ()=>clearInterval(t);
   },[tasks]);
 
@@ -1350,54 +1353,31 @@ function DailySchedule({tasks, completeTask, upd}) {
           {/* 時間帯選択 */}
           <div style={{marginBottom:12}}>
             <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:"0.08em",marginBottom:8}}>時間帯</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {/* 開始 */}
-              <div style={{display:"flex",gap:4,flex:1}}>
-                <select value={addHour} onChange={e=>{
-                    const h=+e.target.value;
-                    setAddHour(h);
-                    // 終了が開始以前なら自動調整
-                    if(h>addEndHour||(h===addEndHour&&addMin>=addEndMin)){
-                      setAddEndHour(h); setAddEndMin(addMin+30>=60?0:addMin+30);
-                      if(addMin+30>=60) setAddEndHour(h+1);
-                    }
-                  }}
-                  style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"8px 6px",
-                    fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1C1C1E",
-                    textAlign:"center"}}>
-                  {Array.from({length:19},(_,i)=>i+5).map(h=>(
-                    <option key={h} value={h}>{h}:00</option>
-                  ))}
-                </select>
-                <select value={addMin} onChange={e=>setAddMin(+e.target.value)}
-                  style={{width:62,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"8px 4px",
-                    fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1C1C1E",
-                    textAlign:"center"}}>
-                  {[0,15,30,45].map(m=>(
-                    <option key={m} value={m}>{String(m).padStart(2,"0")}</option>
-                  ))}
-                </select>
-              </div>
-              <span style={{color:"#9CA3AF",fontSize:14,flexShrink:0}}>〜</span>
-              {/* 終了 */}
-              <div style={{display:"flex",gap:4,flex:1}}>
-                <select value={addEndHour} onChange={e=>setAddEndHour(+e.target.value)}
-                  style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"8px 6px",
-                    fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1C1C1E",
-                    textAlign:"center"}}>
-                  {Array.from({length:19},(_,i)=>i+5).map(h=>(
-                    <option key={h} value={h}>{h}:00</option>
-                  ))}
-                </select>
-                <select value={addEndMin} onChange={e=>setAddEndMin(+e.target.value)}
-                  style={{width:62,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"8px 4px",
-                    fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff",color:"#1C1C1E",
-                    textAlign:"center"}}>
-                  {[0,15,30,45].map(m=>(
-                    <option key={m} value={m}>{String(m).padStart(2,"0")}</option>
-                  ))}
-                </select>
-              </div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <input type="time"
+                value={`${String(addHour).padStart(2,"0")}:${String(addMin).padStart(2,"0")}`}
+                onChange={e=>{
+                  const [h,m]=e.target.value.split(":");
+                  const nh=+h,nm=+m;
+                  setAddHour(nh); setAddMin(nm);
+                  if(nh>addEndHour||(nh===addEndHour&&nm>=addEndMin)){
+                    const endM=nm+60>=60?nm:nm+60;
+                    setAddEndHour(nh+1); setAddEndMin(nm);
+                  }
+                }}
+                style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,
+                  padding:"10px 8px",fontSize:17,fontFamily:"inherit",
+                  outline:"none",background:"#fff",color:"#1C1C1E"}}/>
+              <span style={{color:"#9CA3AF",fontSize:16,flexShrink:0}}>〜</span>
+              <input type="time"
+                value={`${String(addEndHour).padStart(2,"0")}:${String(addEndMin).padStart(2,"0")}`}
+                onChange={e=>{
+                  const [h,m]=e.target.value.split(":");
+                  setAddEndHour(+h); setAddEndMin(+m);
+                }}
+                style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,
+                  padding:"10px 8px",fontSize:17,fontFamily:"inherit",
+                  outline:"none",background:"#fff",color:"#1C1C1E"}}/>
             </div>
           </div>
 
@@ -1894,22 +1874,16 @@ function ReminderSection({task, upd}) {
           </div>
           <div style={{marginBottom:12}}>
             <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:"0.08em",marginBottom:5}}>時間</div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <select value={rHour} onChange={e=>setRHour(+e.target.value)}
-                style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"7px 8px",
-                  fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}>
-                {Array.from({length:19},(_,i)=>i+5).map(h=>(
-                  <option key={h} value={h}>{h}時</option>
-                ))}
-              </select>
-              <select value={rMin} onChange={e=>setRMin(+e.target.value)}
-                style={{flex:1,border:"1.5px solid #E5E7EB",borderRadius:8,padding:"7px 8px",
-                  fontSize:13,fontFamily:"inherit",outline:"none",background:"#fff"}}>
-                {Array.from({length:60},(_,i)=>i).map(m=>(
-                  <option key={m} value={m}>{String(m).padStart(2,"0")}分</option>
-                ))}
-              </select>
-            </div>
+            <input type="time"
+              value={`${String(rHour).padStart(2,"0")}:${String(rMin).padStart(2,"0")}`}
+              onChange={e=>{
+                const [h,m]=e.target.value.split(":");
+                setRHour(+h); setRMin(+m);
+              }}
+              style={{width:"100%",border:"1.5px solid #E5E7EB",borderRadius:8,
+                padding:"10px 12px",fontSize:18,fontFamily:"inherit",
+                outline:"none",background:"#fff",boxSizing:"border-box",
+                color:"#1C1C1E"}}/>
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={save}
@@ -1934,7 +1908,12 @@ function scheduleReminder(taskId, label, date, hour, min) {
 
 // リマインダーチェッカー（App内useEffectで呼ぶ）
 function checkReminders(tasks) {
-  if(!("Notification" in window) || Notification.permission!=="granted") return;
+  if(!("Notification" in window)) return;
+  if(Notification.permission==="default") {
+    Notification.requestPermission();
+    return;
+  }
+  if(Notification.permission!=="granted") return;
   const now = new Date();
   const nowDate = now.toISOString().slice(0,10);
   const nowHour = now.getHours();
@@ -1945,9 +1924,24 @@ function checkReminders(tasks) {
     if(t.reminderHour!==nowHour||t.reminderMin!==nowMin) return;
     const firedKey="reminder_fired_"+t.id+"_"+nowDate+"_"+nowHour+"_"+nowMin;
     if(localStorage.getItem(firedKey)) return;
-    new Notification("🔔 リマインダー",{
-      body:t.text,icon:"./icon.png",tag:"reminder_"+t.id,
-    });
+    try {
+      new Notification("🔔 "+t.text,{
+        body: t.reminderDate+" "+String(t.reminderHour).padStart(2,"0")+":"+String(t.reminderMin).padStart(2,"0"),
+        icon:"./icon.png",
+        tag:"reminder_"+t.id,
+        requireInteraction:true,
+      });
+    } catch(e) {
+      // Service Worker経由で通知
+      if(navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type:"SHOW_NOTIFICATION",
+          title:"🔔 "+t.text,
+          body: t.reminderDate+" "+String(t.reminderHour).padStart(2,"0")+":"+String(t.reminderMin).padStart(2,"0"),
+          tag:"reminder_"+t.id,
+        });
+      }
+    }
     localStorage.setItem(firedKey,"1");
   });
 }
